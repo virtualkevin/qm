@@ -629,7 +629,7 @@ export function renderSidebarTop(): void {
   render(
     html`
       <nav class="nav quick-nav" @click=${onNavClick}>
-        ${navRow("chats", ICON.home, "Home")} ${navRow("swarm", Orbit, "Swarm")}
+        ${navRow("chats", ICON.home, "Home")} ${navRow("swarm", Orbit, "sombrero")}
         ${can("inbox") ? html`${inboxNavRow()} ${navRow("calendar", ICON.calendar, "Calendar")}` : nothing}
         ${actionRow(Search, "Search", () => {
           hideTooltip();

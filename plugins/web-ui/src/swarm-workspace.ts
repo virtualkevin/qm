@@ -32,7 +32,7 @@ export function mountSwarmWorkspace(main: HTMLElement, user: string): () => void
         <label for="swarm-source">Workspace</label>
         <select
           id="swarm-source"
-          aria-label="Swarm data source"
+          aria-label="sombrero data source"
           @change=${(event: Event) => {
             selected = (event.target as HTMLSelectElement).value;
             localStorage.setItem(sourceKey, selected);

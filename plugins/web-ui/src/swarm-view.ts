@@ -269,10 +269,7 @@ export function mountSwarmView(container: HTMLElement, options: SwarmViewOptions
           <header class="swarm-header">
             <div class="swarm-heading">
               <span class="swarm-logomark" aria-hidden="true">✳</span>
-              <div>
-                <h1>Swarm</h1>
-                <p>Mission control</p>
-              </div>
+              <h1>sombrero</h1>
               <span class="swarm-header-divider"></span><span class="swarm-environment"><i></i> Local workspace</span>
             </div>
             <div class="swarm-header-actions">
@@ -407,7 +404,7 @@ export function mountSwarmView(container: HTMLElement, options: SwarmViewOptions
                 </div>
               </div>
             </main>
-            <aside class="swarm-inspector" aria-label="Swarm inspector">
+            <aside class="swarm-inspector" aria-label="sombrero inspector">
               <div class="swarm-inspector-tabs">
                 <span>Inspector</span
                 ><span class="swarm-inspector-index"

@@ -43,7 +43,7 @@ export function destinations(): Destination[] {
     blurb,
   });
   const list: Destination[] = [
-    to("swarm", Orbit, "Swarm", "See agents, missions, and messages in motion"),
+    to("swarm", Orbit, "sombrero", "See agents, missions, and messages in motion"),
     to("contexts", Folder, "Projects", "Group chats, files, and automations"),
     to("files", Files, "Files", "Everything you and QM have shared"),
     to("crons", Clock, "Crons", "Work that runs on a schedule"),
