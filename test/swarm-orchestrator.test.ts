@@ -168,6 +168,12 @@ test("wired swarm outbox drives the real orchestrator, durable runs, and authent
       const requests = await built.sessions.listLlmRequests(view.session.id);
       assert.ok(JSON.stringify(requests).includes("Swarm session identity"));
       assert.ok(JSON.stringify(requests).includes("untrusted metadata"));
+      assert.ok(JSON.stringify(requests).includes("POST /v1/swarm"));
+      assert.ok(JSON.stringify(requests).includes("keep helpers on the same planet by default"));
+      assert.ok(JSON.stringify(requests).includes("only 1-2 children for a request"));
+      assert.ok(JSON.stringify(requests).includes("Send results with POST /v1/swarm"));
+      assert.ok(JSON.stringify(requests).includes("GET /v1/swarm?read=1&after=<last seq>"));
+      assert.ok(JSON.stringify(requests).includes("respect an explicit instruction not to delegate"));
       assert.ok(JSON.stringify(requests).includes("Root memory remains in the authorized notebook"));
     }
     assert.ok(

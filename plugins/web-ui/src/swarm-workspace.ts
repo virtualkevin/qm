@@ -78,7 +78,7 @@ export function mountSwarmWorkspace(main: HTMLElement, user: string): () => void
 
   const startMission = async (text: string) => {
     const startedGeneration = generation;
-    const workerText = `${text}\nWork according to your role. Keep this task bounded and do not create more workers. Read GET /v1/swarm to find the coordinator (depth 0). Report using POST /v1/swarm with {"action":"send","requestId":"<unique id>","audience":["<coordinator member id>"],"text":"<your concise result>","notify":false}. Use the x-agent-capability: $AGENT_API_TOKEN header and $AGENT_API_URL base URL.`;
+    const workerText = `${text}\nWork according to your role. Delegate only when another agent can take a concrete, bounded task; inspect and reuse existing peers first. You may spawn one or two useful helpers with POST /v1/swarm action spawn, a unique requestId, text, and context containing name, role, and task. Omit context.group to keep helpers on your current planet, or set context.group to a concise distinct feature name when the work deserves a new planet. The shared forum is inherited automatically. State why you delegated and report the child IDs. Do not spawn just to populate the map; preserve the swarm budgets and coordinate file ownership. Read GET /v1/swarm to find the coordinator (depth 0). Report using POST /v1/swarm with {"action":"send","requestId":"<unique id>","audience":["<coordinator member id>"],"text":"<your concise result>","notify":false}. Use the x-agent-capability: $AGENT_API_TOKEN header and $AGENT_API_URL base URL.`;
     const contexts = ["Explorer", "Builder", "Reviewer"].map((role) => ({
       group: text.slice(0, 64),
       role,
@@ -108,7 +108,7 @@ export function mountSwarmWorkspace(main: HTMLElement, user: string): () => void
         threadRef,
         ...(session ? { scopeId: session.scopeId } : {}),
         fastMode: true,
-        text: `Coordinate this mission: ${text}\nThe swarm control surface is provisioning three workers with Explorer, Builder, and Reviewer roles. Do not spawn additional workers. Keep work bounded. Use the swarm API to inspect the pool and exchange progress and results with your workers.`,
+        text: `Coordinate this mission: ${text}\nThe swarm control surface is provisioning three initial workers with Explorer, Builder, and Reviewer roles. Inspect and reuse these workers before recruiting more. Agents may delegate concrete bounded tasks to helpers on their current planet or create a distinctly named feature planet with context.group when their intent warrants it. Keep work bounded and coordinate file ownership. Use the swarm API to inspect the pool and exchange progress and results with your workers.`,
         idempotencyKey: crypto.randomUUID(),
       }),
     });

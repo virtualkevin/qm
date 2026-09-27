@@ -10,7 +10,7 @@ import type { SessionStore } from "../sessions/session-store.ts";
 import { conversationScope } from "../resolution/resolution-service.ts";
 import { sleep, withTimeout } from "../util/async.ts";
 import { createSweeper } from "../util/sweeper.ts";
-import { canonicalJson } from "../util/objects.ts";
+import { canonicalJson, isObj } from "../util/objects.ts";
 import { resolveSwarmSettings, type SwarmSettings } from "./swarm-settings.ts";
 import { errMessage, swallow } from "../util/errors.ts";
 import {
@@ -104,6 +104,11 @@ function jsonContext(value: unknown, max: number): unknown {
   const encoded = JSON.stringify(value);
   if (encoded === undefined || Buffer.byteLength(encoded) > max) throw new Error("invalid context");
   return JSON.parse(encoded) as unknown;
+}
+
+function contextText(context: unknown, ...keys: string[]): string | undefined {
+  if (!isObj(context) || Array.isArray(context)) return undefined;
+  return keys.map((key) => context[key]).find((value): value is string => typeof value === "string" && !!value.trim());
 }
 
 function signature(value: unknown): string {
@@ -592,8 +597,10 @@ export function createSwarmService(deps: {
         jsonContext(input.contexts ? input.contexts[index] : defaultContext, settings.contextBytes),
       );
       if (!existing && count > settings.notifications) throw new Error("swarm notification budget exhausted");
-      if (input.forumSandboxId) {
-        const forum = await deps.sandboxes.access(auth.actorId, input.forumSandboxId);
+      const forumSandboxId =
+        input.forumSandboxId ?? existing?.members.find((member) => member.id === auth.memberId)?.forumSandboxId;
+      if (forumSandboxId) {
+        const forum = await deps.sandboxes.access(auth.actorId, forumSandboxId);
         const session = await sessions.get(auth.sessionId);
         if (forum.ownerScopeId !== session?.scopeId) throw new Error("forum scope mismatch");
       }
@@ -610,6 +617,8 @@ export function createSwarmService(deps: {
           throw new Error("conflicting initial swarm settings");
         assertSwarmOpen(swarm);
         const parent = swarm.members.find((member) => member.id === auth.memberId)!;
+        if (input.forumSandboxId === undefined && parent.forumSandboxId !== forumSandboxId)
+          throw new Error("parent forum changed; retry spawn");
         if (parent.depth >= swarm.settings.depth) throw new Error("swarm depth budget exhausted");
         if (swarm.members.length + count > swarm.settings.agents) throw new Error("swarm agent budget exhausted");
         if (Object.keys(swarm.spawnRequests).length >= swarm.settings.spawnRequests)
@@ -619,8 +628,17 @@ export function createSwarmService(deps: {
           swarm.notificationCount + count > swarm.settings.notifications
         )
           throw new Error("swarm work budget exhausted");
+        const group = contextText(parent.context, "group", "feature", "featureId");
+        const ownership = contextText(parent.context, "ownership");
         const members: SwarmMember[] = contexts.map((context) => {
           const id = randomUUID();
+          if (
+            group &&
+            isObj(context) &&
+            !Array.isArray(context) &&
+            !contextText(context, "group", "feature", "featureId")
+          )
+            context = jsonContext({ ...(ownership ? { ownership } : {}), ...context, group }, settings.contextBytes);
           return {
             id,
             parentId: parent.id,
@@ -628,7 +646,7 @@ export function createSwarmService(deps: {
             depth: parent.depth + 1,
             context,
             sandboxId: id,
-            ...(input.forumSandboxId ? { forumSandboxId: input.forumSandboxId } : {}),
+            ...(forumSandboxId ? { forumSandboxId } : {}),
             state: "reserved",
             attempts: 0,
           };

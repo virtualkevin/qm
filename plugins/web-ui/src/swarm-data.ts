@@ -34,11 +34,23 @@ export function swarmSnapshot(
 ): SwarmSnapshot {
   const sessionById = new Map(sessions.map((session) => [session.id, session]));
   const activity = (member: SwarmMember) => sessionById.get(member.sessionId ?? "");
+  const memberById = new Map(inspection.peers.map((member) => [member.id, member]));
+  const planetName = (member: SwarmMember): string => {
+    const visited = new Set<string>();
+    let current: SwarmMember | undefined = member;
+    while (current && !visited.has(current.id)) {
+      visited.add(current.id);
+      const name = contextText(current, "group", "feature", "featureId");
+      if (name) return name;
+      current = current.parentId ? memberById.get(current.parentId) : undefined;
+    }
+    return "Worker pool";
+  };
   const groups = new Map<string, { name: string; members: SwarmMember[] }>();
   const featureByMember = new Map<string, string>();
   for (const member of inspection.peers) {
     if (!member.parentId) continue;
-    const name = contextText(member, "group", "feature", "featureId") ?? "Worker pool";
+    const name = planetName(member);
     const id = `feature:${name}`;
     const group = groups.get(id) ?? { name, members: [] };
     group.members.push(member);

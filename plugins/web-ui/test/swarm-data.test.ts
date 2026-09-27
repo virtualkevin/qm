@@ -132,3 +132,39 @@ test("live session activity distinguishes working, idle, and awaiting input", ()
   assert.equal(snapshot.features[0]?.status, "blocked");
   assert.equal(snapshot.features[0]?.summary, "1 working · 1 ready · 1 awaiting input · 1 failed");
 });
+
+test("delegated helpers stay with their nearest feature ancestor unless they name a new planet", () => {
+  const snapshot = swarmSnapshot(
+    inspect([
+      root,
+      member("nested", { parentId: "helper", context: ["check storage"] }),
+      member("helper", { parentId: "builder", context: { role: "Tester" } }),
+      member("new-planet", { parentId: "builder", context: { feature: "Accessibility" } }),
+      member("new-helper", { parentId: "new-planet", context: "review" }),
+      member("builder", { parentId: "root", context: { group: "Storage" } }),
+    ]),
+    [],
+  );
+  const features = Object.fromEntries(snapshot.agents.map((agent) => [agent.id, agent.featureId]));
+  assert.equal(snapshot.features.length, 2);
+  assert.equal(features.nested, "feature:Storage");
+  assert.equal(features.helper, "feature:Storage");
+  assert.equal(features.builder, "feature:Storage");
+  assert.equal(features["new-planet"], "feature:Accessibility");
+  assert.equal(features["new-helper"], "feature:Accessibility");
+});
+
+test("missing or cyclic parent records leave unnamed workers visible without looping", () => {
+  const snapshot = swarmSnapshot(
+    inspect([
+      root,
+      member("orphan", { parentId: "missing" }),
+      member("cycle-a", { parentId: "cycle-b" }),
+      member("cycle-b", { parentId: "cycle-a" }),
+    ]),
+    [],
+  );
+  assert.equal(snapshot.features.length, 1);
+  assert.equal(snapshot.features[0]?.name, "Worker pool");
+  assert.equal(snapshot.agents.length, 4);
+});
