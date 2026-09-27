@@ -2,12 +2,64 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { swarmFixture } from "./support/swarm-fixture.ts";
 
-test("explicit self-recipient remains in shared history without waking itself", async () => {
+test("agent self-recipient remains in shared history without waking itself", async () => {
   const f = await swarmFixture();
   await f.service.spawn(f.caller, { requestId: "initial", text: "work" });
   const sent = await f.service.send(f.caller, { requestId: "self", audience: [f.root.id], text: "self" });
   assert.deepEqual(sent.audience, [f.root.id]);
   assert.deepEqual(Object.keys(sent.notifications), []);
+});
+test("human messages wake the addressed coordinator through the unattended queue", async () => {
+  for (const broadcast of [false, true]) {
+    const f = await swarmFixture();
+    const [worker] = await f.service.spawn(f.caller, { requestId: "initial", text: "work" });
+    await f.service.sweep();
+    const before = (await f.store.get(f.root.id))!.notificationCount;
+    const caller = { kind: "human" as const, actorId: "alice", sessionId: f.root.id };
+    const input = {
+      requestId: "human",
+      audience: broadcast ? ("all" as const) : [f.root.id],
+      text: "Summarize progress",
+    };
+    const sent = await f.service.send(caller, input);
+    assert.equal(sent.author, "human");
+    assert.equal(sent.actorId, "alice");
+    assert.equal(sent.senderId, f.root.id);
+    assert.deepEqual(
+      Object.keys(sent.notifications).sort(),
+      (broadcast ? [f.root.id, worker!.id] : [f.root.id]).sort(),
+    );
+    assert.equal((await f.service.send(caller, input)).id, sent.id);
+    assert.equal((await f.store.get(f.root.id))!.notificationCount, before + (broadcast ? 2 : 1));
+    await f.service.sweep();
+    const stored = (await f.store.get(f.root.id))!.messages.find((message) => message.id === sent.id)!;
+    const notification = stored.notifications[f.root.id]!;
+    assert.equal(notification.state, "queued");
+    const run = (await f.runs.get(notification.runId!))!;
+    assert.equal(run.status, "pending");
+    assert.equal(run.sessionId, f.root.threadRef);
+    assert.equal(run.request.origin.kind, "automation");
+    assert.equal(run.request.origin.kind === "automation" && run.request.origin.useOwnerKeychain, undefined);
+    assert.equal(run.request.surface, "swarm");
+    assert.equal(run.request.deliveryTarget, undefined);
+    assert.equal(run.request.swarm?.recipientId, f.root.id);
+    assert.ok(await f.service.binding({ ...run.request, runId: run.id }));
+    assert.equal(await f.runs.claimById(run.id, "second-root", 60_000), null);
+    await f.sessions.addParticipant(f.root.id, "bob");
+    await assert.rejects(f.service.binding({ ...run.request, runId: run.id }), /swarm authorization changed/);
+  }
+});
+test("human notify false preserves a coordinator message without reserving a wakeup", async () => {
+  const f = await swarmFixture();
+  await f.service.spawn(f.caller, { requestId: "initial", text: "work" });
+  const before = (await f.store.get(f.root.id))!.notificationCount;
+  const sent = await f.service.send(
+    { kind: "human", actorId: "alice", sessionId: f.root.id },
+    { requestId: "quiet", audience: [f.root.id], text: "For the record", notify: false },
+  );
+  assert.deepEqual(sent.audience, [f.root.id]);
+  assert.deepEqual(sent.notifications, {});
+  assert.equal((await f.store.get(f.root.id))!.notificationCount, before);
 });
 test("all means every eligible member including the sender", async () => {
   const f = await swarmFixture();

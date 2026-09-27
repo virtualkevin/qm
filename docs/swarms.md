@@ -1,5 +1,22 @@
 # Agent swarms
 
+## Swarm view
+
+Open **Swarm** in the web sidebar to see feature planets, individual workers,
+and message pulses. Choose a session or **New workspace** in the workspace
+selector. Launching a mission reserves three workers through the existing
+durable swarm API. Select an agent, a planet, or a dragged group to inspect
+activity and send instructions. Agent inspectors link to their full session
+traces and approval controls.
+
+Both the sidebar view and standalone `/swarm.html` presentation use live swarm
+records and session activity. Group selection starts a real model run summarizing
+the selected agents’ recent messages. Planet sizes reflect Memorable procedure
+counts associated with their workers. See [Local Docker demo](../deploy/local/README.md)
+for local setup, the agent-built todo app, and saved demo checkpoints.
+
+## Sessions
+
 A swarm coordinates ordinary QM sessions. The initiating session is its root;
 workers have their own durable transcripts, runs, identity, and editable JSON
 character/context. The existing authenticated session viewer lists worker sessions
@@ -131,10 +148,12 @@ Notification enqueue uses a stable deduplication key so a crash between enqueue
 and acknowledgment does not enqueue another run. Agent-only turns have no Slack
 delivery target, and the delivery layer also refuses swarm result delivery.
 
-Set `notify:false` for a durable message without a wakeup. Sending to oneself does
-not wake oneself. There are no automatic reply-to-reply notifications: agents
-explicitly decide whether a response warrants another turn. Every generated turn
-consumes the same finite notification budget.
+Set `notify:false` for a durable message without a wakeup. An agent sending to itself
+does not wake itself. Human messages wake every intended recipient, including the
+session through which the human sends the message; these turns still run unattended.
+There are no automatic reply-to-reply notifications: agents explicitly decide
+whether a response warrants another turn. Every generated turn consumes the same
+finite notification budget.
 
 ### Ask, read, and tail
 
@@ -227,8 +246,7 @@ a separate schema so migration-reset tests cannot invalidate its state.
 Set `SWARM_TEST_DATABASE_URL` when running `test/swarm-orchestrator.test.ts` to
 exercise the HTTP spawn/reply flow across an application restart with real durable
 state. These tests use deterministic model and sandbox doubles; live provider and
-model acceptance remains a separate deployment check. The agent-board UI is
-intentionally deferred.
+model acceptance remains a separate deployment check.
 
 Operators can set `SWARMS_ENABLED=false` to disable the swarm service, API,
 agent discovery, and background reconciliation. Existing swarm records and

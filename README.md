@@ -8,6 +8,10 @@ Tell your coding agent of choice `Let's deploy https://github.com/yc-software/qm
 
 You can also try out a 3rd-party hosted version of QM [here](https://www.agent37.com/qm).
 
+For a local Docker stack with your existing Codex sign-in, see
+[Local Docker demo](deploy/local/README.md). It includes the swarm workspace and
+an interactive presentation demo.
+
 If you're an infra provider interested in offering a hosted version of QM, feel free to reach out.
 
 ## What is QM?

@@ -40,6 +40,7 @@ import type { RunSignalStore } from "../runs/run-signal-store.ts";
 import type { WorkspaceStore } from "../workspace/workspace-store.ts";
 import type { FileArtifactStore } from "../files/file-artifact-store.ts";
 import type { MemoryService } from "../memory/memory-service.ts";
+import type { MemorableInspector } from "../memory/memorable/inspection.ts";
 import type { SandboxMigrationRunner } from "../sandbox/sandbox-migration-runner.ts";
 import type { EgressEnforcement, Sandbox } from "../sandbox/sandbox.ts";
 import type { EnvironmentStore } from "../environments/environment-store.ts";
@@ -157,6 +158,7 @@ export interface ServerDeps {
   fileUploads?: DirectFileUploads;
   filesDirectUploadsEnabled?: boolean;
   memory?: MemoryService;
+  memorable?: MemorableInspector;
   sandboxBackend?: string;
   egressDeclaredEnforcement?: EgressEnforcement;
   egressEnforcement?: EgressEnforcement;

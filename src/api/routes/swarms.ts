@@ -32,6 +32,11 @@ async function swarmRequest(ctx: ApiCtx): Promise<void> {
       return sendJson(res, 200, await app.swarms.inspect(caller));
     }
     if (!isObj(body)) throw new Error("expected an object");
+    if (body.action === "renew") {
+      if (caller.kind !== "human") throw new Error("only a human can renew a swarm work window");
+      if (Object.keys(body).some((key) => key !== "action")) throw new Error("unsupported swarm request field");
+      return sendJson(res, 200, await app.swarms.renew(caller));
+    }
     const allowed = new Set([
       "action",
       ...(caller.kind === "human" ? ["runId"] : []),
@@ -88,9 +93,69 @@ async function swarmRequest(ctx: ApiCtx): Promise<void> {
   }
 }
 
+async function swarmMemoryRequest({ app, deps, res, actor, capability, params, method }: ApiCtx): Promise<void> {
+  if (!actor || capability) return sendJson(res, 403, { error: "session-bound authentication required" });
+  const visible = await app.getSessionForViewer(params.id!, actor.p);
+  if (!visible) return sendJson(res, 403, { error: "session access denied" });
+  if (!deps.memorable)
+    return sendJson(res, 200, {
+      memoryCount: 0,
+      memoryCountsBySession: {},
+      memories: [],
+      memoryStatus: "unconfigured",
+      message: "Memorable is not configured for this QM instance.",
+    });
+  const featureSessions = new Map([[params.id!, visible.session.threadRef]]);
+  if (app.swarms) {
+    try {
+      const swarm = await app.swarms.inspect({ kind: "human", actorId: actor.p, sessionId: params.id! });
+      for (const member of [swarm.self, ...swarm.peers]) {
+        if (!member.sessionId) continue;
+        const memberVisible =
+          member.sessionId === params.id ? visible : await app.getSessionForViewer(member.sessionId, actor.p);
+        if (
+          !memberVisible ||
+          memberVisible.session.scopeId !== visible.session.scopeId ||
+          memberVisible.session.threadRef !== member.threadRef
+        )
+          return sendJson(res, 403, { error: "swarm member session access denied" });
+        featureSessions.set(member.sessionId, memberVisible.session.threadRef);
+      }
+    } catch {
+      return sendJson(res, 400, { error: "swarm access unavailable" });
+    }
+  }
+  try {
+    if (method === "POST") {
+      if (!deps.memory) return sendJson(res, 503, { error: "memory capture unavailable" });
+      for (const threadRef of featureSessions.values()) {
+        if ((await deps.runs?.inFlightForThread(threadRef))?.length)
+          return sendJson(res, 409, { error: "Wait for feature agents to finish before recording their memories." });
+      }
+      for (const sessionId of featureSessions.keys())
+        await deps.memory.capture(visible.session.scopeId, [], Date.now(), actor.p, {
+          mode: "automatic",
+          actorId: actor.p,
+          sessionId,
+        });
+    }
+    return sendJson(res, 200, await deps.memorable.inspect(visible.session.scopeId, [...featureSessions.keys()]));
+  } catch {
+    return sendJson(res, 503, {
+      memoryCount: 0,
+      memoryCountsBySession: {},
+      memories: [],
+      memoryStatus: "unavailable",
+      message: "Memorable storage is temporarily unavailable.",
+    });
+  }
+}
+
 export const swarmRoutes: ReadonlyArray<Route<ApiCtx>> = [
   { method: "GET", path: "/v1/swarm", auth: "either", handle: swarmRequest },
   { method: "POST", path: "/v1/swarm", auth: "either", handle: swarmRequest },
   { method: "GET", path: "/v1/sessions/:id/swarm", auth: "source", handle: swarmRequest },
   { method: "POST", path: "/v1/sessions/:id/swarm", auth: "source", handle: swarmRequest },
+  { method: "GET", path: "/v1/sessions/:id/swarm/memories", auth: "source", handle: swarmMemoryRequest },
+  { method: "POST", path: "/v1/sessions/:id/swarm/memories", auth: "source", handle: swarmMemoryRequest },
 ];

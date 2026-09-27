@@ -19,6 +19,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Orbit,
   PanelLeft,
   Plus,
   Repeat,
@@ -92,6 +93,7 @@ import { clearConnectorNotice, noteConnectorResult, renderConnectors, resetKeych
 import { openDeployById, renderDeploys } from "./deploys";
 import { renderMemory, resetMemoryState } from "./memory";
 import { renderCalendar } from "./calendar";
+import { renderSwarm, stopSwarm } from "./swarm";
 import {
   inboxOpenCount,
   refreshInbox,
@@ -229,6 +231,7 @@ const ICON = {
 };
 
 export async function signOut(): Promise<void> {
+  stopSwarm();
   stopAnalytics();
   stopBrowserErrors();
   const portal = authMode === "portal";
@@ -448,6 +451,7 @@ export type AuthGate =
   | { kind: "dev"; value?: string; error?: string; pending?: boolean };
 
 export function renderAuthGate(gate: AuthGate): void {
+  stopSwarm();
   stopAnalytics();
   stopBrowserErrors();
   shellMounted = false;
@@ -625,7 +629,7 @@ export function renderSidebarTop(): void {
   render(
     html`
       <nav class="nav quick-nav" @click=${onNavClick}>
-        ${navRow("chats", ICON.home, "Home")}
+        ${navRow("chats", ICON.home, "Home")} ${navRow("swarm", Orbit, "Swarm")}
         ${can("inbox") ? html`${inboxNavRow()} ${navRow("calendar", ICON.calendar, "Calendar")}` : nothing}
         ${actionRow(Search, "Search", () => {
           hideTooltip();
@@ -687,6 +691,7 @@ export function switchView(v: View): void {
     refreshActiveView(v);
     return;
   }
+  stopSwarm();
   appState.currentView = v;
   capturePageview(v);
   appState.viewRenderSeq++;
@@ -721,6 +726,9 @@ export function switchView(v: View): void {
       break;
     case "calendar":
       renderCalendar();
+      break;
+    case "swarm":
+      renderSwarm();
       break;
     case "webhooks":
       void renderWebhooksPage();
@@ -788,6 +796,9 @@ function refreshActiveView(v: View): void {
       break;
     case "calendar":
       renderCalendar();
+      break;
+    case "swarm":
+      renderSwarm();
       break;
     case "contexts":
       void renderContexts();

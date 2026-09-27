@@ -71,6 +71,7 @@ export interface SwarmService {
     expiresAt: number;
   }>;
   context(caller: SwarmCaller, context: unknown): Promise<SwarmMember>;
+  renew(caller: SwarmCaller): Promise<{ expiresAt: number }>;
   spawn(caller: SwarmCaller, input: SpawnInput): Promise<SwarmMember[]>;
   send(caller: SwarmCaller, input: MessageInput): Promise<SwarmMessage>;
   read(caller: SwarmCaller, options: { after?: number; replyTo?: string; waitMs?: number }): Promise<SwarmMessage[]>;
@@ -548,6 +549,27 @@ export function createSwarmService(deps: {
       });
       return view(updated.members.find((member) => member.id === auth.memberId)!);
     },
+    async renew(caller) {
+      if (caller.kind !== "human") throw new Error("only a human can renew a swarm work window");
+      const { auth } = await load(caller);
+      return deps.lock.withLock(`swarm-reconcile:${auth.rootId}`, () =>
+        deps.lock.withLock(`swarm-delivery:${auth.rootId}`, async () => {
+          const { swarm } = await load(caller);
+          if (Date.now() < swarm.expiresAt) return { expiresAt: swarm.expiresAt };
+          if (swarm.pending) throw new Error("swarm has pending work; retry after reconciliation");
+          const inFlight = await Promise.all(swarm.members.map((member) => runs.inFlightForThread(member.threadRef)));
+          if (inFlight.some((runs) => runs.length))
+            throw new Error("swarm still has active runs; retry when they finish");
+          const updated = await update(auth, (current) => {
+            if (Date.now() < current.expiresAt) return;
+            if (current.pending) throw new Error("swarm has pending work; retry after reconciliation");
+            current.expiresAt = Date.now() + resolveSwarmSettings(current.settings).lifetimeMs;
+            current.notificationCount = 0;
+          });
+          return { expiresAt: updated.expiresAt };
+        }),
+      );
+    },
     async spawn(caller, input) {
       boundedText(input.requestId, 128, "requestId");
       const { auth, swarm: existing } = await authority(caller);
@@ -672,7 +694,8 @@ export function createSwarmService(deps: {
         if (swarm.messages.length >= swarm.settings.messages) throw new Error("swarm message budget exhausted");
         if (input.replyTo && !swarm.messages.some((message) => message.id === input.replyTo))
           throw new Error("reply target is not in this swarm");
-        const recipients = input.notify === false ? [] : audience.filter((peer) => peer !== auth.memberId);
+        const recipients =
+          input.notify === false ? [] : audience.filter((peer) => caller.kind === "human" || peer !== auth.memberId);
         if (swarm.notificationCount + recipients.length > swarm.settings.notifications)
           throw new Error("swarm notification budget exhausted");
         swarm.notificationCount += recipients.length;
