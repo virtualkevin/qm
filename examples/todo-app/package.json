@@ -1,0 +1,14 @@
+{
+  "name": "qm-swarm-todo-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node --watch server.mjs",
+    "test": "node --test storage.test.mjs",
+    "reset": "node --input-type=module -e \"import { copyFileSync } from 'node:fs'; copyFileSync('todos.seed.json', 'todos.json')\""
+  }
+}

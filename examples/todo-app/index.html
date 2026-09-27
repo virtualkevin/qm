@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Today — a little more focused</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #fbfaf7;
+        --ink: #20211f;
+        --muted: #777970;
+        --line: #e7e5de;
+        --green: #3c7955;
+        --green-soft: #e8f0e8;
+        --red: #a54438;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        min-height: 100vh;
+      }
+      .shell {
+        width: min(100% - 40px, 650px);
+        margin: 0 auto;
+        padding: 68px 0 56px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--green);
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+      .eyebrow:before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--green);
+      }
+      h1 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-weight: 400;
+        font-size: clamp(46px, 9vw, 68px);
+        letter-spacing: -0.045em;
+        margin: 15px 0 5px;
+        line-height: 1.04;
+      }
+      .subtitle {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .date {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 17px;
+      }
+      .add-form {
+        display: flex;
+        gap: 10px;
+        margin: 34px 0 28px;
+      }
+      .add-form input {
+        flex: 1;
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: #fff;
+        padding: 13px 14px;
+        font: inherit;
+        font-size: 14px;
+        color: var(--ink);
+        outline: none;
+      }
+      .add-form input:focus,
+      .edit-input:focus {
+        border-color: var(--green);
+        box-shadow: 0 0 0 3px #3c79551a;
+      }
+      .button {
+        font: inherit;
+        border: 0;
+        border-radius: 5px;
+        cursor: pointer;
+        transition:
+          background 0.15s,
+          color 0.15s,
+          transform 0.15s;
+      }
+      .button:focus-visible,
+      .check:focus-visible,
+      .icon-button:focus-visible {
+        outline: 3px solid #3c795566;
+        outline-offset: 2px;
+      }
+      .add-button {
+        background: var(--ink);
+        color: white;
+        padding: 0 19px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .add-button:hover {
+        background: #3b4d3e;
+      }
+      .section-head {
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        padding: 13px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .section-title {
+        font-size: 11px;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+      .count {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .task {
+        display: grid;
+        grid-template-columns: 22px 1fr auto;
+        gap: 13px;
+        align-items: center;
+        min-height: 61px;
+        border-bottom: 1px solid var(--line);
+        animation: appear 0.18s ease-out;
+      }
+      .check {
+        appearance: none;
+        width: 19px;
+        height: 19px;
+        border: 1px solid #c9c8c0;
+        border-radius: 50%;
+        margin: 0;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        background: transparent;
+      }
+      .check:checked {
+        background: var(--green);
+        border-color: var(--green);
+      }
+      .check:checked:after {
+        content: "";
+        width: 8px;
+        height: 5px;
+        border-left: 1.5px solid white;
+        border-bottom: 1.5px solid white;
+        transform: translateY(-1px) rotate(-45deg);
+      }
+      .task-title {
+        font-size: 14px;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+      .task.done .task-title {
+        color: #92938d;
+        text-decoration: line-through;
+        text-decoration-color: #b9bbb4;
+      }
+      .actions {
+        display: flex;
+        gap: 3px;
+        opacity: 0.78;
+      }
+      .icon-button {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        padding: 7px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 12px;
+      }
+      .icon-button:hover {
+        background: #f0eee8;
+        color: var(--ink);
+      }
+      .icon-button.delete:hover {
+        color: var(--red);
+        background: #f8eeeb;
+      }
+      .edit-input {
+        min-width: 0;
+        width: 100%;
+        padding: 7px 9px;
+        border: 1px solid var(--green);
+        border-radius: 4px;
+        font: inherit;
+        font-size: 14px;
+        background: white;
+        outline: none;
+      }
+      .empty {
+        padding: 42px 16px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .empty-mark {
+        margin: 0 auto 13px;
+        width: 34px;
+        height: 34px;
+        border: 1px solid #d8ddd5;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        color: var(--green);
+        font-size: 16px;
+      }
+      .status {
+        padding: 14px 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .status.error {
+        color: var(--red);
+      }
+      .status[hidden],
+      .empty[hidden],
+      .list[hidden] {
+        display: none;
+      }
+      .footer {
+        margin-top: 23px;
+        color: #9b9b94;
+        font-size: 11px;
+        letter-spacing: 0.02em;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      @keyframes appear {
+        from {
+          opacity: 0.2;
+          transform: translateY(3px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @media (max-width: 480px) {
+        .shell {
+          padding-top: 44px;
+        }
+        .task {
+          gap: 10px;
+        }
+        .actions {
+          opacity: 1;
+        }
+        .icon-button {
+          padding: 8px 6px;
+        }
+        .add-form {
+          margin-top: 27px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div class="eyebrow">A fresh start</div>
+        <h1>Today<span style="color: var(--green)">.</span></h1>
+        <p class="subtitle">Make room for what matters.</p>
+        <div class="date" id="date"></div>
+      </header>
+      <form class="add-form" id="add-form">
+        <label class="sr-only" for="new-title">Add a task</label>
+        <input
+          id="new-title"
+          name="title"
+          maxlength="240"
+          placeholder="What needs doing?"
+          autocomplete="off"
+          required
+        />
+        <button class="button add-button" type="submit">Add task <span aria-hidden="true">↗</span></button>
+      </form>
+      <div class="section-head"><span class="section-title">Your list</span><span class="count" id="count"></span></div>
+      <div class="status" id="status" role="status" aria-live="polite">Loading your tasks…</div>
+      <ul class="list" id="list" aria-label="Tasks" hidden></ul>
+      <div class="empty" id="empty" hidden>
+        <div class="empty-mark" aria-hidden="true">✳</div>
+        <div>Nothing on the list yet.</div>
+        <div style="font-size: 12px; margin-top: 5px">Add a task to get started.</div>
+      </div>
+      <div class="footer">One thing at a time.</div>
+    </main>
+    <script>
+      const API = "/api/todos";
+      const list = document.querySelector("#list");
+      const statusEl = document.querySelector("#status");
+      const emptyEl = document.querySelector("#empty");
+      const countEl = document.querySelector("#count");
+      const addForm = document.querySelector("#add-form");
+      const newTitle = document.querySelector("#new-title");
+      let todos = [];
+      let busy = false;
+      document.querySelector("#date").textContent = new Intl.DateTimeFormat(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      }).format(new Date());
+      function setStatus(message = "", error = false) {
+        statusEl.textContent = message;
+        statusEl.hidden = !message;
+        statusEl.classList.toggle("error", error);
+      }
+      async function request(path, options = {}) {
+        const response = await fetch(path, {
+          ...options,
+          headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+        });
+        let data;
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error("The server returned an unreadable response.");
+        }
+        if (!response.ok) throw new Error(data.error || data.message || `Request failed (${response.status}).`);
+        return data;
+      }
+      function render() {
+        list.replaceChildren();
+        const remaining = todos.filter((todo) => !todo.done).length;
+        countEl.textContent = todos.length ? `${remaining} ${remaining === 1 ? "to do" : "to do"}` : "0 tasks";
+        list.hidden = todos.length === 0;
+        emptyEl.hidden = todos.length !== 0;
+        if (!statusEl.classList.contains("error")) statusEl.hidden = true;
+        for (const todo of todos) {
+          const row = document.createElement("li");
+          row.className = `task${todo.done ? " done" : ""}`;
+          const check = document.createElement("input");
+          check.type = "checkbox";
+          check.className = "check";
+          check.checked = Boolean(todo.done);
+          check.setAttribute("aria-label", `${todo.done ? "Mark incomplete" : "Complete"}: ${todo.title}`);
+          check.addEventListener("change", () => mutate(todo.id, { done: check.checked }));
+          const title = document.createElement("span");
+          title.className = "task-title";
+          title.textContent = todo.title;
+          const actions = document.createElement("div");
+          actions.className = "actions";
+          const edit = document.createElement("button");
+          edit.type = "button";
+          edit.className = "icon-button";
+          edit.textContent = "Edit";
+          edit.setAttribute("aria-label", `Edit ${todo.title}`);
+          edit.addEventListener("click", () => beginEdit(row, todo));
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "icon-button delete";
+          del.textContent = "Delete";
+          del.setAttribute("aria-label", `Delete ${todo.title}`);
+          del.addEventListener("click", () => remove(todo.id));
+          actions.append(edit, del);
+          row.append(check, title, actions);
+          list.append(row);
+        }
+      }
+      async function load() {
+        setStatus("Loading your tasks…");
+        try {
+          const data = await request(API);
+          if (!Array.isArray(data.todos)) throw new Error("The server returned an invalid task list.");
+          todos = data.todos;
+          render();
+          setStatus();
+        } catch (error) {
+          list.hidden = true;
+          emptyEl.hidden = true;
+          setStatus(error.message || "Could not load tasks. Please try again.", true);
+        }
+      }
+      async function mutate(id, changes) {
+        try {
+          const data = await request(`${API}/${encodeURIComponent(id)}`, {
+            method: "PATCH",
+            body: JSON.stringify(changes),
+          });
+          todos = todos.map((todo) => (todo.id === id ? data.todo : todo));
+          render();
+          setStatus();
+        } catch (error) {
+          setStatus(error.message || "Could not update task.", true);
+        }
+      }
+      async function remove(id) {
+        try {
+          await request(`${API}/${encodeURIComponent(id)}`, { method: "DELETE" });
+          todos = todos.filter((todo) => todo.id !== id);
+          render();
+          setStatus();
+        } catch (error) {
+          setStatus(error.message || "Could not delete task.", true);
+        }
+      }
+      function beginEdit(row, todo) {
+        const input = document.createElement("input");
+        input.className = "edit-input";
+        input.value = todo.title;
+        input.maxLength = 240;
+        input.setAttribute("aria-label", `Edit task: ${todo.title}`);
+        const title = row.querySelector(".task-title");
+        title.replaceWith(input);
+        row.querySelector(".actions").hidden = true;
+        input.focus();
+        input.select();
+        let finished = false;
+        const finish = async (save) => {
+          if (finished) return;
+          finished = true;
+          const value = input.value.trim();
+          if (save && value && value !== todo.title) {
+            await mutate(todo.id, { title: value });
+            return;
+          }
+          render();
+        };
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            finish(true);
+          }
+          if (event.key === "Escape") finish(false);
+        });
+        input.addEventListener("blur", () => finish(true));
+      }
+      addForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (busy) return;
+        const title = newTitle.value.trim();
+        if (!title) {
+          newTitle.focus();
+          return;
+        }
+        busy = true;
+        const button = addForm.querySelector("button");
+        button.disabled = true;
+        try {
+          const data = await request(API, { method: "POST", body: JSON.stringify({ title }) });
+          todos.push(data.todo);
+          render();
+          setStatus();
+          newTitle.value = "";
+          newTitle.focus();
+        } catch (error) {
+          setStatus(error.message || "Could not add task.", true);
+        } finally {
+          busy = false;
+          button.disabled = false;
+        }
+      });
+      load();
+    </script>
+  </body>
+</html>

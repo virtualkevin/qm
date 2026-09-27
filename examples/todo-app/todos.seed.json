@@ -1,0 +1,17 @@
+[
+  {
+    "id": "0ccfe43d-663e-4319-8a2c-f6fbbaffafcd",
+    "title": "Design a calm todo app",
+    "done": true
+  },
+  {
+    "id": "4c79bac3-26cc-4c84-9cf1-af57929d5b1c",
+    "title": "Keep todos after reload",
+    "done": false
+  },
+  {
+    "id": "0b2ff24f-038c-4f08-a3c8-0b0ea0acb9b3",
+    "title": "Add list reordering",
+    "done": false
+  }
+]
