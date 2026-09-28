@@ -68,6 +68,37 @@ the recovery checkpoint name. Restore that checkpoint before resuming the demo.
 After recovery, start services with `docker compose -f deploy/local/compose.yaml up -d`
 and the todo restart command above.
 
+## OrbStack network capacity
+
+Each agent sandbox has its own isolated Docker network. Demo resets preserve those
+networks, so repeated demos can exhaust the available subnets and fail with
+`all predefined address pools have been fully subnetted`.
+
+On OrbStack, run `orb config docker` to edit `~/.orbstack/config/docker.json`.
+Saving changes restarts the Docker engine, so let active agents finish first.
+Merge this setting into the configuration. If `default-address-pools` already
+exists, append the new pool; preserve all other settings, existing pools, and
+IPv6 entries:
+
+```json
+{
+  "default-address-pools": [{ "base": "10.240.0.0/14", "size": 24 }]
+}
+```
+
+This adds capacity for 1,024 `/24` networks. Check that the range does not overlap
+your LAN or VPN routes before using it. Verify the applied pools with:
+
+```bash
+docker info --format '{{json .DefaultAddressPools}}'
+```
+
+This configuration is local to your machine; restoring a demo checkpoint does
+not change it. Increasing capacity preserves the existing networks and data;
+global pruning or deleting volumes is unnecessary. See Docker's
+[automatic subnet allocation](https://docs.docker.com/engine/network/#automatic-subnet-allocation)
+documentation for pool sizing.
+
 Planet size follows the number of actual Memorable procedure records associated
 with its agents' sessions. After feature workers finish, the UI asks QM to extract
 procedures from their stored tool traces through Memorable. No procedures or
