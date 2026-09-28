@@ -73,7 +73,7 @@ export default defineConfig({
   },
   build: {
     outDir: "dist-web",
-    rollupOptions: { input: { main: here("index.html"), shared: here("shared.html") } },
+    rollupOptions: { input: { main: here("index.html"), shared: here("shared.html"), swarm: here("swarm.html") } },
     emptyOutDir: true,
   },
   server: {

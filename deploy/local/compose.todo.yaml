@@ -1,0 +1,15 @@
+name: qm-todo
+services:
+  todo:
+    image: qm-local:dev
+    working_dir: /root/workspace/todo-app
+    command: ["node", "--watch", "server.mjs"]
+    volumes:
+      - todo-workspace:/root
+    ports:
+      - "127.0.0.1:8768:3000"
+    restart: unless-stopped
+volumes:
+  todo-workspace:
+    external: true
+    name: ${TODO_WORKSPACE_VOLUME:?Set TODO_WORKSPACE_VOLUME to the shared sandbox volume}

@@ -16,7 +16,12 @@ data
 .context
 .env
 *.env
+**/*.env
 .env.local
 *.env.local
 plugins/**/.env*
 .claude
+deploy/local/checkpoints
+examples/todo-app/todos.json
+examples/todo-app/*.sqlite*
+examples/todo-app/*.tmp

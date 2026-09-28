@@ -114,6 +114,10 @@ test("authenticated swarm API binds agent operations to the token and human oper
     assert.equal(view.status, 200);
     const data = (await view.json()) as { peers: unknown[] };
     assert.equal(data.peers.length, 3);
+    assert.equal(
+      (await fetch(`${base}/v1/swarm`, { method: "POST", headers, body: JSON.stringify({ action: "renew" }) })).status,
+      400,
+    );
     const badAudience = await fetch(`${base}/v1/swarm`, {
       method: "POST",
       headers,
@@ -125,6 +129,17 @@ test("authenticated swarm API binds agent operations to the token and human oper
     const path = `/v1/sessions/${fixture.root.id}/swarm`;
     assert.equal((await fetch(`${base}${path}`, { headers })).status, 403);
     const portal = await mintPortalIdentity({ p: "alice", exp: Date.now() + 60_000 }, portalIdentitySecret);
+    const renewBody = JSON.stringify({ action: "renew" });
+    const renewed = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: signedRequestHeaders(secret, "POST", path, renewBody, {
+        "x-portal-identity": portal,
+        "content-type": "application/json",
+      }),
+      body: renewBody,
+    });
+    assert.equal(renewed.status, 200);
+    assert.ok(((await renewed.json()) as { expiresAt: number }).expiresAt > Date.now());
     const body = JSON.stringify({
       action: "send",
       requestId: "human",

@@ -1,0 +1,4 @@
+todos.json
+*.sqlite
+*.sqlite-*
+*.tmp

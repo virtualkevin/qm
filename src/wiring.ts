@@ -197,6 +197,7 @@ import type { DeployGitArchive } from "./deploy/deploy-git-store.ts";
 import { createLocalWorkspaceStore, type WorkspaceStore } from "./workspace/workspace-store.ts";
 import { createMemoryService, type MemoryService } from "./memory/memory-service.ts";
 import { createConfiguredMemoryService } from "./memory/provider-factory.ts";
+import { createMemorableInspector, type MemorableInspector } from "./memory/memorable/inspection.ts";
 import { createPostgresMemoryService } from "./memory/postgres-memory-service.ts";
 import { createMcpServerStore, type McpServer, type McpServerStore } from "./mcp/mcp-server-store.ts";
 import { createMcpToolService, type McpToolService } from "./mcp/mcp-tool-service.ts";
@@ -524,6 +525,7 @@ export interface BuiltApp {
   fireDropResolution?: (drop: DropResolution) => Promise<unknown>;
   workspace: WorkspaceStore;
   memory: MemoryService;
+  memorable?: MemorableInspector;
   sandbox: Sandbox;
   advisoryLock: AdvisoryLock;
   sandboxMigration: SandboxMigrationRunner;
@@ -2790,6 +2792,9 @@ export function buildApp(
     composioReturns,
     workspace,
     memory,
+    ...(pgArtifactMap && config.memoryProviderConfig?.providers.some((provider) => provider.type === "memorable")
+      ? { memorable: createMemorableInspector(pgArtifactMap.pool) }
+      : {}),
     ...(keychain ? { keychain } : {}),
     serviceCreds: credentialStore,
     deliveries,
@@ -2939,6 +2944,7 @@ export function serverDeps(
     ...(built.fileUploads ? { fileUploads: built.fileUploads } : {}),
     filesDirectUploadsEnabled: config.filesDirectUploadsEnabled,
     memory: built.memory,
+    ...(built.memorable ? { memorable: built.memorable } : {}),
     blobTransfer: built.blobTransfer,
     sandboxBackend: built.sandbox.profile.backend,
     egressDeclaredEnforcement: built.sandbox.profile.egressEnforcement ?? "none",

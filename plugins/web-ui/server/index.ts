@@ -4,6 +4,7 @@ import { flushErrorReporting, reportBackendError } from "../../chassis/src/error
 import { appEditSlug } from "../src/app-edit.ts";
 import { composioCallbackUrl } from "./composio-return.ts";
 import { sharedSessionHtml } from "./shared-session.ts";
+import { swarmSummaryMemberIds, swarmSummaryPrompt } from "./swarm-summary.ts";
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Readable } from "node:stream";
@@ -979,8 +980,9 @@ async function serveVite(req: IncomingMessage, res: ServerResponse, path: string
     });
   });
   if (res.headersSent || res.writableEnded) return true;
-  if (extname(path)) return false;
-  let html = readFileSync(join(ROOT, "index.html"), "utf8");
+  if (extname(path) && path !== "/index.html" && path !== "/swarm.html") return false;
+  const entry = path === "/swarm.html" ? "swarm.html" : "index.html";
+  let html = readFileSync(join(ROOT, entry), "utf8");
   html = html.replace("%BASE_URL%favicon.svg", "favicon.svg");
   html = await vite.transformIndexHtml(req.url ?? "/", html);
   sendHtml(res, 200, await brandIndexHtml(html));
@@ -1809,6 +1811,81 @@ const apiRoutes: readonly WebRoute[] = [
         `/v1/skills/${encodeURIComponent(id)}/restore`,
         JSON.stringify({ principalId: user }),
       );
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/sessions/:id/swarm/memories",
+    handle: async ({ res, params }: WebCtx) => {
+      res.setHeader("Cache-Control", "no-store");
+      return relayCore(res, "GET", `/v1/sessions/${encodeURIComponent(params.id!)}/swarm/memories`);
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/sessions/:id/swarm/memories",
+    handle: async ({ res, params }: WebCtx) => {
+      res.setHeader("Cache-Control", "no-store");
+      return relayCore(res, "POST", `/v1/sessions/${encodeURIComponent(params.id!)}/swarm/memories`, "{}");
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/sessions/:id/swarm/summary",
+    handle: async ({ req, res, user, params }: WebCtx) => {
+      res.setHeader("Cache-Control", "no-store");
+      const body = await readJson<{ memberIds?: unknown; requestId?: unknown }>(req, res, false);
+      if (!body) return;
+      const memberIds = swarmSummaryMemberIds(body.memberIds);
+      if (!memberIds)
+        return json(res, 400, { error: "bad_request", message: "Select between 1 and 16 swarm members." });
+      if (
+        body.requestId !== undefined &&
+        (typeof body.requestId !== "string" || !/^[A-Za-z0-9._-]{1,80}$/.test(body.requestId))
+      )
+        return json(res, 400, { error: "bad_request", message: "Invalid requestId." });
+      const prepared = await swarmSummaryPrompt(coreFetch, params.id!, user, memberIds);
+      if ("response" in prepared) return relay(res, prepared.response);
+      const requestId = typeof body.requestId === "string" ? body.requestId : randomBytes(16).toString("hex");
+      const threadRef = `web:${user}:swarm-summary:${params.id!}:${requestId}`;
+      return postTurnAndMint(
+        req,
+        res,
+        {
+          ...webTurnBase(req, user, { kind: "dm", threadRef }, threadRef, prepared.prompt),
+          fastMode: true,
+          readOnly: true,
+          skipMemory: true,
+          surfaceTools: false,
+          idempotencyKey: namespacedSendKey(user, `swarm-summary.${requestId}`),
+        },
+        user,
+        threadRef,
+      );
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/sessions/:id/swarm",
+    handle: async ({ res, url, params }: WebCtx) => {
+      res.setHeader("Cache-Control", "no-store");
+      const query = new URLSearchParams();
+      for (const key of ["read", "after", "waitMs", "replyTo"]) {
+        const value = url.searchParams.get(key);
+        if (value !== null) query.set(key, value);
+      }
+      const suffix = query.size ? `?${query}` : "";
+      return relayCore(res, "GET", `/v1/sessions/${encodeURIComponent(params.id!)}/swarm${suffix}`);
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/sessions/:id/swarm",
+    handle: async ({ req, res, params }: WebCtx) => {
+      res.setHeader("Cache-Control", "no-store");
+      const body = await readJson<Record<string, unknown>>(req, res, false);
+      if (!body) return;
+      return relayCore(res, "POST", `/v1/sessions/${encodeURIComponent(params.id!)}/swarm`, JSON.stringify(body));
     },
   },
   {

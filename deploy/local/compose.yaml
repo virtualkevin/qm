@@ -1,0 +1,144 @@
+name: qm-local
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: qm
+      POSTGRES_USER: qm
+      POSTGRES_PASSWORD: qm-local
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qm -d qm"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+  core:
+    image: qm-local:dev
+    container_name: qm-local-core
+    build:
+      context: ../..
+      dockerfile: deploy/local/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - local.env
+    environment:
+      NODE_ENV: development
+      ORG_ID: local
+      PORT: "8080"
+      DATABASE_URL: postgres://qm:qm-local@postgres:5432/qm
+      SESSION_STORE: postgres
+      RUN_STORE: postgres
+      HARNESS: codex
+      CODEX_MODEL: gpt-6-luna
+      CODEX_AUTH_FILE: /run/codex/auth.json
+      MEMORABLE_HOME: /data/memorable
+      MEMORABLE_BACKEND: qm
+      MEMORABLE_DB_URL: postgres://qm:qm-local@postgres:5432/qm
+      MEMORY_PROVIDER_CONFIG: '{"providers":[{"id":"memorable","type":"memorable"}],"routes":[{"provider":"default","scopes":["personal","channel","team","org","group"],"capture":"automatic"},{"provider":"memorable","scopes":["personal"],"capture":"automatic","manage":false,"failOpen":false,"label":"Memorable procedures"}]}'
+      SANDBOX_BACKEND: local
+      SANDBOX_RESOURCES_ENABLED: "true"
+      LOCAL_SANDBOX_IMAGE: qm-local-sandbox:dev
+      QM_CORE_CONTAINER: qm-local-core
+      CORE_API_URL: http://qm-local-core:8080
+      PUBLIC_API_URL: http://qm-local-core:8080
+      PUBLIC_WEB_URL: http://localhost:8765
+      ADMIN_GRANTS: dev:org_admin
+      SUGGESTED_ACTIVITIES_ENABLED: "false"
+      DATA_DIR: /data
+      SHUTDOWN_DRAIN_MS: "2000"
+    volumes:
+      - core-data:/data
+      - ${CODEX_AUTH_FILE:-${HOME}/.codex/auth.json}:/run/codex/auth.json:ro
+      - ${MEMORABLE_CONFIG_FILE:-${HOME}/.memorable/config.json}:/data/memorable/.memorable/config.json:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../../src:/app/src:ro
+    ports:
+      - "127.0.0.1:8766:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+  web:
+    image: qm-local:dev
+    working_dir: /app/plugins/web-ui
+    command: ["node", "server/index.ts"]
+    depends_on:
+      core:
+        condition: service_started
+    env_file:
+      - local.env
+    environment:
+      NODE_ENV: development
+      PORT: "8080"
+      CORE_API_URL: http://core:8080
+      CORE_ORG_ID: local
+      WEB_UI_DEV: "1"
+      __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: web
+      WEB_UI_PUBLIC_URL: http://localhost:8765
+      WEB_UI_PRINCIPALS: dev
+    volumes:
+      - ../../plugins/web-ui:/app/plugins/web-ui:ro
+      - web-dependencies:/app/plugins/web-ui/node_modules
+    ports:
+      - "127.0.0.1:8767:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  portal:
+    image: qm-local:dev
+    command: ["node", "deploy/local/portal.mjs"]
+    depends_on:
+      - web
+    env_file:
+      - local.env
+    environment:
+      NODE_ENV: development
+      CORE_API_URL: http://core:8080
+      CORE_ORG_ID: local
+      WEB_UI_UPSTREAM: http://web:8080
+      ADMIN_UPSTREAM: http://web:8080/admin
+      PORTAL_PUBLIC_URL: http://localhost:8765
+      PORTAL_LOCAL_AUTH_BYPASS: "1"
+      PORTAL_DEV_PRINCIPAL: dev
+    volumes:
+      - ./portal.mjs:/app/deploy/local/portal.mjs:ro
+    ports:
+      - "127.0.0.1:8765:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+volumes:
+  postgres:
+  core-data:
+  web-dependencies:

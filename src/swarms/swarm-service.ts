@@ -10,7 +10,7 @@ import type { SessionStore } from "../sessions/session-store.ts";
 import { conversationScope } from "../resolution/resolution-service.ts";
 import { sleep, withTimeout } from "../util/async.ts";
 import { createSweeper } from "../util/sweeper.ts";
-import { canonicalJson } from "../util/objects.ts";
+import { canonicalJson, isObj } from "../util/objects.ts";
 import { resolveSwarmSettings, type SwarmSettings } from "./swarm-settings.ts";
 import { errMessage, swallow } from "../util/errors.ts";
 import {
@@ -71,6 +71,7 @@ export interface SwarmService {
     expiresAt: number;
   }>;
   context(caller: SwarmCaller, context: unknown): Promise<SwarmMember>;
+  renew(caller: SwarmCaller): Promise<{ expiresAt: number }>;
   spawn(caller: SwarmCaller, input: SpawnInput): Promise<SwarmMember[]>;
   send(caller: SwarmCaller, input: MessageInput): Promise<SwarmMessage>;
   read(caller: SwarmCaller, options: { after?: number; replyTo?: string; waitMs?: number }): Promise<SwarmMessage[]>;
@@ -103,6 +104,11 @@ function jsonContext(value: unknown, max: number): unknown {
   const encoded = JSON.stringify(value);
   if (encoded === undefined || Buffer.byteLength(encoded) > max) throw new Error("invalid context");
   return JSON.parse(encoded) as unknown;
+}
+
+function contextText(context: unknown, ...keys: string[]): string | undefined {
+  if (!isObj(context) || Array.isArray(context)) return undefined;
+  return keys.map((key) => context[key]).find((value): value is string => typeof value === "string" && !!value.trim());
 }
 
 function signature(value: unknown): string {
@@ -548,6 +554,27 @@ export function createSwarmService(deps: {
       });
       return view(updated.members.find((member) => member.id === auth.memberId)!);
     },
+    async renew(caller) {
+      if (caller.kind !== "human") throw new Error("only a human can renew a swarm work window");
+      const { auth } = await load(caller);
+      return deps.lock.withLock(`swarm-reconcile:${auth.rootId}`, () =>
+        deps.lock.withLock(`swarm-delivery:${auth.rootId}`, async () => {
+          const { swarm } = await load(caller);
+          if (Date.now() < swarm.expiresAt) return { expiresAt: swarm.expiresAt };
+          if (swarm.pending) throw new Error("swarm has pending work; retry after reconciliation");
+          const inFlight = await Promise.all(swarm.members.map((member) => runs.inFlightForThread(member.threadRef)));
+          if (inFlight.some((runs) => runs.length))
+            throw new Error("swarm still has active runs; retry when they finish");
+          const updated = await update(auth, (current) => {
+            if (Date.now() < current.expiresAt) return;
+            if (current.pending) throw new Error("swarm has pending work; retry after reconciliation");
+            current.expiresAt = Date.now() + resolveSwarmSettings(current.settings).lifetimeMs;
+            current.notificationCount = 0;
+          });
+          return { expiresAt: updated.expiresAt };
+        }),
+      );
+    },
     async spawn(caller, input) {
       boundedText(input.requestId, 128, "requestId");
       const { auth, swarm: existing } = await authority(caller);
@@ -570,8 +597,10 @@ export function createSwarmService(deps: {
         jsonContext(input.contexts ? input.contexts[index] : defaultContext, settings.contextBytes),
       );
       if (!existing && count > settings.notifications) throw new Error("swarm notification budget exhausted");
-      if (input.forumSandboxId) {
-        const forum = await deps.sandboxes.access(auth.actorId, input.forumSandboxId);
+      const forumSandboxId =
+        input.forumSandboxId ?? existing?.members.find((member) => member.id === auth.memberId)?.forumSandboxId;
+      if (forumSandboxId) {
+        const forum = await deps.sandboxes.access(auth.actorId, forumSandboxId);
         const session = await sessions.get(auth.sessionId);
         if (forum.ownerScopeId !== session?.scopeId) throw new Error("forum scope mismatch");
       }
@@ -588,6 +617,8 @@ export function createSwarmService(deps: {
           throw new Error("conflicting initial swarm settings");
         assertSwarmOpen(swarm);
         const parent = swarm.members.find((member) => member.id === auth.memberId)!;
+        if (input.forumSandboxId === undefined && parent.forumSandboxId !== forumSandboxId)
+          throw new Error("parent forum changed; retry spawn");
         if (parent.depth >= swarm.settings.depth) throw new Error("swarm depth budget exhausted");
         if (swarm.members.length + count > swarm.settings.agents) throw new Error("swarm agent budget exhausted");
         if (Object.keys(swarm.spawnRequests).length >= swarm.settings.spawnRequests)
@@ -597,8 +628,17 @@ export function createSwarmService(deps: {
           swarm.notificationCount + count > swarm.settings.notifications
         )
           throw new Error("swarm work budget exhausted");
+        const group = contextText(parent.context, "group", "feature", "featureId");
+        const ownership = contextText(parent.context, "ownership");
         const members: SwarmMember[] = contexts.map((context) => {
           const id = randomUUID();
+          if (
+            group &&
+            isObj(context) &&
+            !Array.isArray(context) &&
+            !contextText(context, "group", "feature", "featureId")
+          )
+            context = jsonContext({ ...(ownership ? { ownership } : {}), ...context, group }, settings.contextBytes);
           return {
             id,
             parentId: parent.id,
@@ -606,7 +646,7 @@ export function createSwarmService(deps: {
             depth: parent.depth + 1,
             context,
             sandboxId: id,
-            ...(input.forumSandboxId ? { forumSandboxId: input.forumSandboxId } : {}),
+            ...(forumSandboxId ? { forumSandboxId } : {}),
             state: "reserved",
             attempts: 0,
           };
@@ -672,7 +712,8 @@ export function createSwarmService(deps: {
         if (swarm.messages.length >= swarm.settings.messages) throw new Error("swarm message budget exhausted");
         if (input.replyTo && !swarm.messages.some((message) => message.id === input.replyTo))
           throw new Error("reply target is not in this swarm");
-        const recipients = input.notify === false ? [] : audience.filter((peer) => peer !== auth.memberId);
+        const recipients =
+          input.notify === false ? [] : audience.filter((peer) => caller.kind === "human" || peer !== auth.memberId);
         if (swarm.notificationCount + recipients.length > swarm.settings.notifications)
           throw new Error("swarm notification budget exhausted");
         swarm.notificationCount += recipients.length;

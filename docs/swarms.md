@@ -1,5 +1,27 @@
 # Agent swarms
 
+## Swarm view
+
+Open **Swarm** in the web sidebar to see feature planets, individual workers,
+and message pulses. Choose a session or **New workspace** in the workspace
+selector. Launching a mission reserves three workers through the existing
+durable swarm API. Select an agent, a planet, or a dragged group to inspect
+activity and send instructions. Agent inspectors link to their full session
+traces and approval controls.
+
+Workers can delegate useful parts of the mission to other workers. Helpers stay
+on the same feature planet by default; a deliberately distinct feature name in
+`context.group` creates another planet within the same swarm. Workers report
+their reason for delegating and the new child member IDs through swarm messages.
+
+Both the sidebar view and standalone `/swarm.html` presentation use live swarm
+records and session activity. Group selection starts a real model run summarizing
+the selected agents’ recent messages. Planet sizes reflect Memorable procedure
+counts associated with their workers. See [Local Docker demo](../deploy/local/README.md)
+for local setup, the agent-built todo app, and saved demo checkpoints.
+
+## Sessions
+
 A swarm coordinates ordinary QM sessions. The initiating session is its root;
 workers have their own durable transcripts, runs, identity, and editable JSON
 character/context. The existing authenticated session viewer lists worker sessions
@@ -60,6 +82,23 @@ single `context` supplies the same initial JSON to every worker. Context may be 
 JSON value, not just a role object. `contexts` must match the requested count.
 The root is enrolled on the first spawn; workers can recursively call the same API.
 
+Delegation should serve a concrete, bounded part of the current task. Inspect peers
+first and prefer giving work to an available existing peer. Usually one or two
+children are enough for a request; never spawn merely because a worker is idle,
+and respect explicit instructions not to delegate. The stored member, depth,
+message, and notification budgets continue to bound all recursive work. The
+defaults of 32 total members and depth 4 are limits, not targets.
+
+For a helper on the current feature, omit `context` or provide an object such as
+`{"role":"reviewer"}`. When the child's object context has no valid `group`,
+`feature`, or `featureId` label, it inherits the parent's feature label as `group`,
+keeping the child on the same planet. For an intentionally distinct feature,
+set a short, distinct `context.group`, such as `{"group":"search","role":"builder"}`.
+This groups workers visually within the existing swarm; it creates no new
+authorization scope. Explicit child labels are preserved. Non-object JSON
+contexts remain unchanged. Explain the delegation and report the returned child
+member IDs to the requester through a swarm message.
+
 The response is `202` with reserved members. A durable outbox provisions their
 computers, creates sessions, adds the original participants, and queues initial
 turns. Discovery shows `reserved`, `ready`, or `failed` and any provisioning error.
@@ -78,7 +117,8 @@ is not an authorization principal. Existing provider persistence behavior is
 unchanged; swarms add no filesystem snapshots, immutable copies, or restores.
 
 To add a shared forum, supply `forumSandboxId` naming an existing authorized sandbox
-in the same scope. Every worker still gets its own blank private computer.
+in the same scope. When omitted, a child inherits its parent's forum, with the
+same access checks as an explicit selection. Every worker still gets its own blank private computer.
 The forum ID appears in peer metadata and the worker prompt; select it explicitly
 with `execute`'s `sandbox_id` for commands that should use the shared computer.
 This is not a new filesystem synchronization feature. Workers using a forum share
@@ -131,10 +171,12 @@ Notification enqueue uses a stable deduplication key so a crash between enqueue
 and acknowledgment does not enqueue another run. Agent-only turns have no Slack
 delivery target, and the delivery layer also refuses swarm result delivery.
 
-Set `notify:false` for a durable message without a wakeup. Sending to oneself does
-not wake oneself. There are no automatic reply-to-reply notifications: agents
-explicitly decide whether a response warrants another turn. Every generated turn
-consumes the same finite notification budget.
+Set `notify:false` for a durable message without a wakeup. An agent sending to itself
+does not wake itself. Human messages wake every intended recipient, including the
+session through which the human sends the message; these turns still run unattended.
+There are no automatic reply-to-reply notifications: agents explicitly decide
+whether a response warrants another turn. Every generated turn consumes the same
+finite notification budget.
 
 ### Ask, read, and tail
 
@@ -227,8 +269,7 @@ a separate schema so migration-reset tests cannot invalidate its state.
 Set `SWARM_TEST_DATABASE_URL` when running `test/swarm-orchestrator.test.ts` to
 exercise the HTTP spawn/reply flow across an application restart with real durable
 state. These tests use deterministic model and sandbox doubles; live provider and
-model acceptance remains a separate deployment check. The agent-board UI is
-intentionally deferred.
+model acceptance remains a separate deployment check.
 
 Operators can set `SWARMS_ENABLED=false` to disable the swarm service, API,
 agent discovery, and background reconciliation. Existing swarm records and

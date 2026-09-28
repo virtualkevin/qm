@@ -21,6 +21,11 @@ const productionEnv = {
   SANDBOX_BACKEND: "local",
 } as const;
 
+test("local sandbox receives its Docker core container for network connectivity", () => {
+  assert.equal(loadConfig({}).localSandbox.coreContainer, undefined);
+  assert.equal(loadConfig({ QM_CORE_CONTAINER: "qm-local-core" }).localSandbox.coreContainer, "qm-local-core");
+});
+
 test("Sprites proxy transition URLs are optional and parsed independently of the primary", () => {
   assert.equal(loadConfig({}).spritesSandbox.egressProxyAdditionalUrls, undefined);
   const config = loadConfig({
